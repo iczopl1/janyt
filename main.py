@@ -8,7 +8,6 @@ from collections import deque
 from conf import conf2
 
 
-# uptate to push
 # Bot configuration
 TOKEN = conf2.TOKEN
 PREFIX = "/"
