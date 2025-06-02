@@ -2,7 +2,7 @@ import os, json, threading
 import discord
 from discord.ext import commands, tasks
 from yt_dlp import YoutubeDL
-from conf import conf
+from conf import conf2
 
 TOKEN = conf.TOKEN
 MUSIC_DIR = "music/downloads"
