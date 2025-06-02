@@ -115,6 +115,21 @@ def download_music(link):
             with open(playlist_file, "w") as f:
                 json.dump(playlist, f, indent=2)
 
+@bot.command()
+async def help(ctx):
+    help_text = """
+**Available Commands**:
+/join - Join your voice channel.
+/leave - Leave the voice channel.
+/play <filename or YouTube URL> - Play a local song or auto-download and play from YouTube.
+/download <YouTube URL> - Download a song or playlist to the server.
+/playlist - List available playlists.
+/playlist <name> - Play a full playlist by name (auto-downloads missing songs).
+/list - List downloaded songs.
+/refresh - Reload the song database.
+/help - Show this help message.
+"""
+    await ctx.send(help_text)
 
 @bot.command()
 async def join(ctx):
