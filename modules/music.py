@@ -253,7 +253,8 @@ class Music(commands.Cog):
             if ctx.voice_client is None:
                 # Connect to voice channel with timeout
                 try:
-                    vc = await voice_channel.connect(timeout=30.0, reconnect=True)
+                    vc = await voice_channel.connect(timeout=60.0, reconnect=True)
+                    await asyncio.sleep(5)
                     return vc
                 except asyncio.TimeoutError:
                     await ctx.send("⚠️ Connection timeout. Please try again.")
