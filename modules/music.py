@@ -248,6 +248,41 @@ class Music(commands.Cog):
             self.bot.current_song = None
             await ctx.send("Queue is empty!")
 
+    async def ensure_voice_client(self, ctx, voice_channel):
+        try:
+            if ctx.voice_client is None:
+                # Connect to voice channel with timeout
+                try:
+                    vc = await voice_channel.connect(timeout=30.0, reconnect=True)
+                    return vc
+                except asyncio.TimeoutError:
+                    await ctx.send("⚠️ Connection timeout. Please try again.")
+                    return None
+                except discord.ClientException as e:
+                    await ctx.send(f"❌ Connection failed: {str(e)}")
+                    return None
+
+            elif ctx.voice_client.channel != voice_channel:
+                # Move to new channel with timeout
+                try:
+                    await ctx.voice_client.move_to(voice_channel, timeout=30.0)
+                    return ctx.voice_client
+                except asyncio.TimeoutError:
+                    await ctx.send("⚠️ Moving timeout. Please try again.")
+                    return None
+                except discord.ClientException as e:
+                    await ctx.send(f"❌ Failed to move: {str(e)}")
+                    return None
+
+            return ctx.voice_client
+
+        except Exception as e:
+            print(f"Unexpected voice connection error: {traceback.format_exc()}")
+            await ctx.send(
+                "⚠️ An unexpected error occurred while handling voice connection."
+            )
+            return None
+
     @commands.command(name="play", help="Plays a song from YouTube")
     async def play(self, ctx, *, query):
         try:
@@ -255,11 +290,9 @@ class Music(commands.Cog):
                 return await ctx.send("You are not connected to a voice channel!")
 
             voice_channel = ctx.author.voice.channel
-
-            if ctx.voice_client is None:
-                await voice_channel.connect()
-            elif ctx.voice_client.channel != voice_channel:
-                await ctx.voice_client.move_to(voice_channel)
+            voice_client = await self.ensure_voice_client(ctx, voice_channel)
+            if voice_client is None:
+                return
             ctx.send("Work")
             try:
                 await ctx.send("Start looking")
