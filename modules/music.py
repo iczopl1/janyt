@@ -260,7 +260,7 @@ class Music(commands.Cog):
                 await voice_channel.connect()
             elif ctx.voice_client.channel != voice_channel:
                 await ctx.voice_client.move_to(voice_channel)
-
+            ctx.send("Work")
             try:
                 await ctx.send("Start looking")
                 if query.startswith("http"):
