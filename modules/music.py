@@ -258,12 +258,15 @@ class Music(commands.Cog):
             voice_channel = ctx.author.voice.channel
 
             if ctx.voice_client is None:
+                await ctx.send("Connect")
+
                 await voice_channel.connect()
             elif ctx.voice_client.channel != voice_channel:
+                await ctx.send("Reconnect")
                 await ctx.voice_client.move_to(voice_channel)
 
             try:
-                ctx.send("Start looking")
+                await ctx.send("Start looking")
                 if query.startswith("http"):
                     url = query
                 else:
