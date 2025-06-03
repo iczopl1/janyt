@@ -297,6 +297,7 @@ class Music(commands.Cog):
         except Exception as e:
             print(f"Unexpected error in play command: {e}")
 
+    @commands.command(name="play_playlist", help="Plays a Playlist from YouTube")
     async def play_playlist(self, ctx, url):
         if not ctx.author.voice:
             await ctx.send("You are not connected to a voice channel!")
@@ -310,31 +311,48 @@ class Music(commands.Cog):
             await ctx.voice_client.move_to(voice_channel)
 
         try:
+            msg = await ctx.send("⏳ Processing playlist...")
+
             ydl_opts = {
-                "extract_flat": True,
                 "quiet": True,
                 "no_warnings": True,
+                "extract_flat": True,
             }
 
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+                data = ydl.extract_info(url, download=False)
 
-                if "entries" not in info:
-                    await ctx.send("This doesn't appear to be a playlist!")
-                    return
+            if "entries" not in data or not data["entries"]:
+                await ctx.send("This doesn't appear to be a valid playlist.")
+                return
 
-                count = 0
-                for entry in info["entries"]:
-                    song_url = f"https://youtube.com/watch?v={entry['id']}"
-                    self.bot.song_queue.append((song_url, ctx.author.id))
-                    count += 1
-                self.save_queue()
-                await ctx.send(f"Added {count} songs from playlist to queue!")
+            count = 0
+            for entry in data["entries"]:
+                song_url = f"https://youtube.com/watch?v={entry['id']}"
+                try:
+                    filepath = await self.download_song(song_url)
+                    if filepath:
+                        self.bot.song_queue.append((song_url, ctx.author.id))
+                        count += 1
+                        self.save_queue()
+                        if not self.bot.is_playing:
+                            await self.play_next(ctx)
 
-                if not self.bot.is_playing:
-                    await self.play_next(ctx)
+                    else:
+                        await ctx.send(f"⚠️ Failed to download: {song_url}")
+                except Exception as e:
+                    await ctx.send(f"⚠️ Error downloading a song: {e}")
+
+            self.save_queue()
+            await msg.delete()
+            await ctx.send(f"✅ Added {count} songs from playlist to queue!")
+
+            if not self.bot.is_playing:
+                await self.play_next(ctx)
+
         except Exception as e:
             await ctx.send(f"Error processing playlist: {e}")
+            print(f"Error in play_playlist: {e}")
 
     @commands.command(name="queue", help="Shows the current queue")
     async def show_queue(self, ctx):
