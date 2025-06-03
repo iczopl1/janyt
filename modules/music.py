@@ -182,29 +182,18 @@ class Music(commands.Cog):
                     requester.mention if requester else f"User {user_id}"
                 )
 
-                if url in self.bot.song_library:
-                    filepath = self.bot.song_library[url]["filepath"]
-                    if os.path.exists(filepath):
-                        source = discord.FFmpegPCMAudio(filepath)
-                        self.bot.current_song = YTDLSource(
-                            source, data=self.bot.song_library[url]
-                        )
-                    else:
-                        filepath = await self.download_song(url)
-                        if not filepath:
-                            raise Exception("Failed to download song")
-                        source = discord.FFmpegPCMAudio(filepath)
-                        self.bot.current_song = YTDLSource(
-                            source, data=self.bot.song_library[url]
-                        )
-                else:
-                    filepath = await self.download_song(url)
-                    if not filepath:
-                        raise Exception("Failed to download song")
-                    source = discord.FFmpegPCMAudio(filepath)
-                    self.bot.current_song = YTDLSource(
-                        source, data=self.bot.song_library[url]
-                    )
+                # Assume file exists and is in song_library
+                song_data = self.bot.song_library[url]
+                filepath = song_data["filepath"]
+
+                # Create audio source with proper FFmpeg options
+                source = discord.FFmpegPCMAudio(
+                    executable="ffmpeg",
+                    source=filepath,
+                    options="-vn -b:a 128k -ar 48000 -ac 2",
+                )
+
+                self.bot.current_song = YTDLSource(source, data=song_data)
 
                 if not self.bot.current_song or not hasattr(
                     self.bot.current_song, "title"
@@ -213,36 +202,46 @@ class Music(commands.Cog):
 
                 ctx.voice_client.play(
                     self.bot.current_song,
-                    after=lambda e: asyncio.run_coroutine_threadsafe(
-                        self.play_next(ctx), self.bot.loop
+                    after=lambda e: (
+                        asyncio.run_coroutine_threadsafe(
+                            self.play_next(ctx), self.bot.loop
+                        )
+                        if e is None
+                        else print(f"Player error: {e}")
                     ),
                 )
 
+                # Create embed
                 embed = discord.Embed(
                     title="Now Playing",
                     description=f"[{self.bot.current_song.title}]({url})",
                     color=discord.Color.green(),
                 )
+
                 if (
                     hasattr(self.bot.current_song, "thumbnail")
                     and self.bot.current_song.thumbnail
                 ):
                     embed.set_thumbnail(url=self.bot.current_song.thumbnail)
+
                 if (
                     hasattr(self.bot.current_song, "duration")
                     and self.bot.current_song.duration
                 ):
+                    minutes, seconds = divmod(self.bot.current_song.duration, 60)
                     embed.add_field(
-                        name="Duration",
-                        value=f"{self.bot.current_song.duration // 60}:{self.bot.current_song.duration % 60:02}",
+                        name="Duration", value=f"{minutes}:{seconds:02}", inline=True
                     )
-                embed.add_field(name="Requested by", value=requester_mention)
+
+                embed.add_field(
+                    name="Requested by", value=requester_mention, inline=True
+                )
                 await ctx.send(embed=embed)
 
             except Exception as e:
                 print(f"Error playing song: {e}")
-                await ctx.send(f"Error playing song: {str(e)}")
                 self.bot.is_playing = False
+                await ctx.send(f"Error playing song: {str(e)}")
                 await self.play_next(ctx)
         else:
             self.bot.is_playing = False
@@ -258,11 +257,8 @@ class Music(commands.Cog):
             voice_channel = ctx.author.voice.channel
 
             if ctx.voice_client is None:
-                await ctx.send("Connect")
-
                 await voice_channel.connect()
             elif ctx.voice_client.channel != voice_channel:
-                await ctx.send("Reconnect")
                 await ctx.voice_client.move_to(voice_channel)
 
             try:
