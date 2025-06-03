@@ -263,6 +263,7 @@ class Music(commands.Cog):
                 await ctx.voice_client.move_to(voice_channel)
 
             try:
+                ctx.send("Start looking")
                 if query.startswith("http"):
                     url = query
                 else:
