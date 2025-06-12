@@ -1,0 +1,25 @@
+{
+  "name": "discord-music-bot",
+  "version": "1.0.0",
+  "description": "Advanced Discord music bot with playlist support",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "nodemon main.js"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.11.0",
+    "discord.js": "^14.19.3",
+    "ffmpeg-static": "^5.2.0",
+    "libsodium-wrappers": "^0.7.15",
+    "mongoose": "^8.15.1",
+    "play-dl": "^1.9.7",
+    "sanitize-filename": "^1.6.3",
+    "yt-search": "^2.10.3",
+    "ytdl-core": "^4.11.5"
+  },
+  "devDependencies": {
+    "dotenv": "^16.0.3",
+    "nodemon": "^2.0.20"
+  }
+}
