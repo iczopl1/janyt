@@ -161,85 +161,102 @@ module.exports = {
 
 
 
-    async playNextSong(interaction, queue, voiceChannel) {
-        try {
-            if (queue.songs.length === 0) {
-                queue.playing = false;
-                // Clean up downloaded files
-                queue.tempFiles.forEach(file => {
-                    try {
-                        fs.unlinkSync(file);
-                    } catch (err) {
-                        console.error('Error cleaning up file:', err);
-                    }
-                });
-                await interaction.channel.send('🎶 Queue finished!');
-                return;
+async playNextSong(interaction, queue, voiceChannel) {
+    try {
+        if (queue.songs.length === 0) {
+            queue.playing = false;
+            // Clean up if no more songs
+            if (queue.connection) {
+                queue.connection.destroy();
+                queue.connection = null;
             }
+            return;
+        }
 
-            queue.playing = true;
-            const currentSong = queue.songs[0];
-            queue.currentSong = currentSong;
+        queue.playing = true;
+        const currentSong = queue.songs[0];
 
-            // Create or reuse voice connection
-            if (!queue.connection) {
+        // Clean up previous player events to avoid memory leaks
+        if (queue.player) {
+            queue.player.removeAllListeners();
+        }
+
+        // Create or reuse voice connection
+        if (!queue.connection) {
+            try {
                 queue.connection = joinVoiceChannel({
                     channelId: voiceChannel.id,
                     guildId: voiceChannel.guild.id,
                     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
                 });
-                queue.player = createAudioPlayer();
+                
+                // Handle potential voice connection errors
+                queue.connection.on('error', error => {
+                    console.error('Voice connection error:', error);
+                    interaction.channel.send('❌ Voice connection error').catch(console.error);
+                });
+                
+                queue.player = createAudioPlayer({
+                    behaviors: {
+                        noSubscriber: NoSubscriberBehavior.Pause,
+                    },
+                });
                 queue.connection.subscribe(queue.player);
+            } catch (error) {
+                console.error('Voice connection failed:', error);
+                throw error;
             }
+        }
 
-            // Create audio resource and play
-            const resource = createAudioResource(currentSong.path);
+        // Create audio resource and play
+        try {
+            const resource = createAudioResource(currentSong.path, {
+                inputType: StreamType.Arbitrary,
+                inlineVolume: true
+            });
+            
             queue.player.play(resource);
-            await interaction.channel.send(`🎶 Now playing: **${currentSong.title}**`);
 
             // Set up event handlers
             queue.player.on('error', error => {
                 console.error('Player error:', error);
                 interaction.channel.send(`❌ Error playing: ${currentSong.title}`).catch(console.error);
-                // Skip to next song on error
+                // Attempt to play next song on error
                 queue.songs.shift();
                 this.playNextSong(interaction, queue, voiceChannel);
             });
 
-            queue.player.on('idle', () => {
-                // Clean up the played file if it was a temporary download
-                if (queue.tempFiles.includes(currentSong.path)) {
-                    try {
-                        fs.unlinkSync(currentSong.path);
-                        queue.tempFiles = queue.tempFiles.filter(f => f !== currentSong.path);
-                    } catch (err) {
-                        console.error('Error cleaning up file:', err);
-                    }
-                }
-                
+            queue.player.on(AudioPlayerStatus.Idle, () => {
                 queue.songs.shift();
                 this.playNextSong(interaction, queue, voiceChannel);
             });
+
+            // Send now playing message
+            await interaction.channel.send(`🎶 Now playing: **${currentSong.title}**`).catch(console.error);
 
         } catch (error) {
-            console.error('Playback error:', error);
-            queue.playing = false;
-            
-            // Clean up resources
-            if (queue.connection) {
-                queue.connection.destroy();
-            }
-            // Clean up any downloaded files
-            queue.tempFiles.forEach(file => {
-                try {
-                    fs.unlinkSync(file);
-                } catch (err) {
-                    console.error('Error cleaning up file:', err);
-                }
-            });
-            
-            interaction.client.queues.delete(interaction.guild.id);
-            await interaction.channel.send('❌ Error playing the playlist').catch(console.error);
+            console.error('Playback failed:', error);
+            queue.songs.shift();
+            this.playNextSong(interaction, queue, voiceChannel);
         }
+
+    } catch (error) {
+        console.error('Playback error:', error);
+        queue.playing = false;
+        
+        // Clean up resources
+        if (queue.connection) {
+            queue.connection.destroy();
+            queue.connection = null;
+        }
+        if (queue.player) {
+            queue.player.removeAllListeners();
+            queue.player.stop();
+        }
+        
+        interaction.client.queues.delete(interaction.guild.id);
+        
+        await interaction.channel.send('❌ Error playing the song').catch(console.error);
     }
+}
 };
